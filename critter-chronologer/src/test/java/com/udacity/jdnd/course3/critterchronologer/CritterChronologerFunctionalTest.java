@@ -5,6 +5,7 @@ import com.google.common.collect.Sets;
 import com.udacity.jdnd.course3.critterchronologer.controller.PetController;
 import com.udacity.jdnd.course3.critterchronologer.controller.ScheduleController;
 import com.udacity.jdnd.course3.critterchronologer.controller.UserController;
+import com.udacity.jdnd.course3.critterchronologer.dto.request.EmployeeRequestDTO;
 import com.udacity.jdnd.course3.critterchronologer.dto.response.CustomerResponseDTO;
 import com.udacity.jdnd.course3.critterchronologer.dto.response.EmployeeResponseDTO;
 import com.udacity.jdnd.course3.critterchronologer.dto.response.PetResponseDTO;
@@ -86,7 +87,100 @@ public class CritterChronologerFunctionalTest {
     }
 
     @Test
-    public void testSchedulePetsWithEmployee() {
+    public void testFindPetsByOwner() {
+        CustomerResponseDTO customerDTO = createCustomerDTO();
+        CustomerResponseDTO newCustomer = userController.saveCustomer(customerDTO);
+
+        PetResponseDTO petDTO = createPetDTO();
+        petDTO.setOwnerId(newCustomer.getId());
+        PetResponseDTO newPet = petController.savePet(petDTO);
+        petDTO.setType(PetType.DOG);
+        petDTO.setName("DogName");
+        PetResponseDTO newPet2 = petController.savePet(petDTO);
+        PetResponseDTO newPet3 = petController.savePet(petDTO);
+        PetResponseDTO newPet4 = petController.savePet(petDTO);
+        PetResponseDTO newPet5 = petController.savePet(petDTO);
+
+        List<PetResponseDTO> pets = petController.getPetsByOwner(newCustomer.getId());
+        Assertions.assertEquals(pets.size(), 5);
+        Assertions.assertEquals(pets.get(0).getOwnerId(), newCustomer.getId());
+        Assertions.assertEquals(pets.get(0).getId(), newPet.getId());
+    }
+
+    @Test
+    public void testFindOwnerByPet() {
+        CustomerResponseDTO customerDTO = createCustomerDTO();
+        CustomerResponseDTO newCustomer = userController.saveCustomer(customerDTO);
+
+        PetResponseDTO petDTO = createPetDTO();
+        petDTO.setOwnerId(newCustomer.getId());
+        PetResponseDTO newPet = petController.savePet(petDTO);
+
+        CustomerResponseDTO owner = userController.getPetOwner(newPet.getId());
+        Assertions.assertEquals(owner.getId(), newCustomer.getId());
+        Assertions.assertEquals(owner.getPetIds().get(0), newPet.getId());
+    }
+
+    @Test
+    public void testChangeEmployeeAvailability() {
+        EmployeeResponseDTO employeeDTO = createEmployeeDTO();
+        EmployeeResponseDTO employee1 = userController.saveEmployee(employeeDTO);
+        Assertions.assertNull(employee1.getDaysAvailable());
+
+        Set<DayOfWeek> availability = Sets.newHashSet(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY);
+        userController.setAvailability(employee1.getId(), availability);
+
+        EmployeeResponseDTO employee2 = userController.getEmployee(employee1.getId());
+        Assertions.assertEquals(availability, employee2.getDaysAvailable());
+    }
+
+    @Test
+    public void testFindEmployeesByServiceAndTime() {
+        EmployeeResponseDTO employee1 = createEmployeeDTO();
+        EmployeeResponseDTO employee2 = createEmployeeDTO();
+        EmployeeResponseDTO employee3 = createEmployeeDTO();
+
+        employee1.setDaysAvailable(Sets.newHashSet(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY));
+        employee2.setDaysAvailable(Sets.newHashSet(DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY));
+        employee3.setDaysAvailable(Sets.newHashSet(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY));
+
+        employee1.setSkills(Sets.newHashSet(EmployeeSkill.FEEDING, EmployeeSkill.PETTING));
+        employee2.setSkills(Sets.newHashSet(EmployeeSkill.PETTING, EmployeeSkill.WALKING));
+        employee3.setSkills(Sets.newHashSet(EmployeeSkill.WALKING, EmployeeSkill.SHAVING));
+
+        EmployeeResponseDTO employee1DB = userController.saveEmployee(employee1);
+        EmployeeResponseDTO employee2DB = userController.saveEmployee(employee2);
+        EmployeeResponseDTO employee3DB = userController.saveEmployee(employee3);
+
+        // make a request that matches employee 1 or 2
+        EmployeeRequestDTO employeeRequest1DTO = new EmployeeRequestDTO();
+        employeeRequest1DTO.setDate(LocalDate.of(2019, 12, 25));
+        employeeRequest1DTO.setSkills(Sets.newHashSet(EmployeeSkill.PETTING));
+
+        Set<Long> employeeIds1DBList = userController.findEmployeesForService(employeeRequest1DTO)
+                                                     .stream()
+                                                     .map(EmployeeResponseDTO::getId)
+                                                     .collect(Collectors.toSet());
+
+        Set<Long> employeeIds1ExpectedList = Sets.newHashSet(employee1DB.getId(), employee2DB.getId());
+        Assertions.assertEquals(employeeIds1DBList, employeeIds1ExpectedList);
+
+        // make a request that matches only employee 3
+        EmployeeRequestDTO employeeRequest2DTO = new EmployeeRequestDTO();
+        employeeRequest2DTO.setDate(LocalDate.of(2019, 12, 27));
+        employeeRequest2DTO.setSkills(Sets.newHashSet(EmployeeSkill.WALKING, EmployeeSkill.SHAVING));
+
+        Set<Long> employeeIds2DBList = userController.findEmployeesForService(employeeRequest2DTO)
+                                                     .stream()
+                                                     .map(EmployeeResponseDTO::getId)
+                                                     .collect(Collectors.toSet());
+
+        Set<Long> employeeIds2ExpectedList = Sets.newHashSet(employee3DB.getId());
+        Assertions.assertEquals(employeeIds2DBList, employeeIds2ExpectedList);
+    }
+
+    @Test
+    public void testSchedulePetsForServiceWithEmployee() {
         EmployeeResponseDTO employeeTemp = createEmployeeDTO();
         employeeTemp.setDaysAvailable(Sets.newHashSet(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY));
         EmployeeResponseDTO employeeDTO = userController.saveEmployee(employeeTemp);
